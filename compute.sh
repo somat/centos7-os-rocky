@@ -7,10 +7,12 @@ yum -y update
 # == Define variable ==
 CONTROLLER_MGMT_ADDR=10.100.0.5
 COMPUTE1_MGMT_ADDR=10.100.0.6
+COMPUTE2_MGMT_ADDR=10.100.0.7
+COMPUTE3_MGMT_ADDR=10.100.0.8
+COMPUTE4_MGMT_ADDR=10.100.0.9
 
-COMPUTE1_PROVIDER_ADDR=172.16.18.163
-COMPUTE1_PROVIDER_PREFIX=21
-COMPUTE1_PROVIDER_INTERFACE=enp0s3
+PROVIDER_INTERFACE=em1
+MGMT_ADDR=$COMPUTE1_MGMT_ADDR
 
 RABBIT_PASS=rahasia
 
@@ -34,6 +36,9 @@ echo "Creating hosts file ..."
 cat >>/etc/hosts <<EOF
 $CONTROLLER_MGMT_ADDR   controller
 $COMPUTE1_MGMT_ADDR     compute1
+$COMPUTE2_MGMT_ADDR     compute2
+$COMPUTE3_MGMT_ADDR     compute3
+$COMPUTE4_MGMT_ADDR     compute4
 EOF
 
 # === NTP
@@ -61,7 +66,7 @@ cat >/etc/nova/nova.conf <<EOF
 [DEFAULT]
 enabled_apis = osapi_compute,metadata
 transport_url = rabbit://openstack:$RABBIT_PASS@controller
-my_ip = $COMPUTE1_MGMT_ADDR
+my_ip = $MGMT_ADDR
 use_neutron = true
 firewall_driver = nova.virt.firewall.NoopFirewallDriver
 
@@ -232,7 +237,7 @@ drop_flows_on_start=False
 [ovs]
 integration_bridge=br-int
 tunnel_bridge=br-tun
-local_ip=$COMPUTE1_MGMT_ADDR
+local_ip=$MGMT_ADDR
 bridge_mappings=extnet:br-ex
 
 [securitygroup]
@@ -246,8 +251,6 @@ PROXY_METHOD=none
 BROWSER_ONLY=no
 DEFROUTE=yes
 ONBOOT=yes
-IPADDR=$COMPUTE1_PROVIDER_ADDR
-PREFIX=$COMPUTE1_PROVIDER_PREFIX
 DEVICE=br-ex
 NAME=br-ex
 DEVICETYPE=ovs
@@ -256,9 +259,9 @@ TYPE=OVSBridge
 OVS_EXTRA="set bridge br-ex fail_mode=standalone"
 EOF
 
-cat >/etc/sysconfig/network-scripts/$COMPUTE1_PROVIDER_INTERFACE <<EOF
-DEVICE=$COMPUTE1_PROVIDER_INTERFACE
-NAME=$COMPUTE1_PROVIDER_INTERFACE
+cat >/etc/sysconfig/network-scripts/ifcfg-$PROVIDER_INTERFACE <<EOF
+DEVICE=$PROVIDER_INTERFACE
+NAME=$PROVIDER_INTERFACE
 DEVICETYPE=ovs
 TYPE=OVSPort
 OVS_BRIDGE=br-ex
@@ -272,4 +275,5 @@ systemctl start neutron-openvswitch-agent.service
 
 printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 echo "Finished ..."
-echo "Dont forget to discover compute on controller ...."
+echo "Dont forget to discover compute on controller by running:"
+echo "su -s /bin/sh -c 'nova-manage cell_v2 discover_hosts --verbose' nova"
